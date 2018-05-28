@@ -1,0 +1,139 @@
+---
+title: "Project Overview"
+author: "tobiasst"
+date: '`r format(Sys.time(), "%d %B, %Y")`'
+output:
+  html_document:
+    df_print: paged
+    code_folding: hide
+---
+
+```{r init, message=F, warning=F}
+library(SummarizedExperiment)
+library(biomaRt)
+rerun <- T
+```
+
+## build sample table from runinfo table
+
+```{r samples}
+samples <- read.delim("data/cluster/SraRunTable.txt")
+```
+
+Li R, Grimm SA, Mav D, Gu H et al. Transcriptome and DNA Methylome Analysis in a Mouse Model of Diet-Induced Obesity Predicts Increased Risk of Colorectal Cancer. Cell Rep 2018 Jan 16;22(3):624-637. PMID: 29346762
+https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE85731
+
+
+Data is paired-end, stranded. RNA-Seq was performed in colonic epithelium from mice on three different dietary regimens as follows: 1) low-fat diet for 20 weeks; 2) high-fat diet for 20 weeks; 3) high-fat diet for an initial 15 weeks then switched to low-fat diet for another 5 weeks.
+
+## Collect data from cluster 
+
+```{r collect_data}
+
+if (rerun) {
+  cluster.dir <- "/Users/tobiasst/Desktop/mount/work/project/tobias/wade_2018/"
+  
+  cmat <- c()
+  tmat <- c()
+  
+  for (sample in samples$Run) {
+    sample.name <- 
+      starcounts <- read.delim(paste(cluster.dir,sample,"_out/",sample,".ReadsPerGene.out.tab",sep=""), header=F)  
+    cmat <- cbind(cmat, starcounts[,4])
+    if (!sum(starcounts[,2])==0) {
+      rsemtpm <- read.delim(paste(cluster.dir,sample,"_out/",sample,"_rsem.genes.results",sep=""), header=T)
+      tmat <- cbind(tmat, rsemtpm$TPM)
+    } else {
+      tmat <- cbind(tmat, rep(NA, nrow(tmat)))
+    }
+    
+  }
+  rownames(cmat) <- starcounts[,1]
+  rownames(tmat) <- rsemtpm$gene_id
+  
+  flt <- !(grepl("^N_", rownames(cmat)))
+  cmat <- cmat[flt,]
+  
+  colnames(cmat) <- samples$Run
+  colnames(tmat) <- samples$Run
+  tmat <- tmat[match(rownames(cmat), rownames(tmat)),]
+  
+  dim(cmat)
+  flt <- rowSums(cmat) > 0
+  cmat <- cmat[flt,]
+  tmat <- tmat[flt,]
+  dim(cmat)
+  
+  samplesM <- data.frame(group=samples$diet)
+  rownames(samplesM) <- samples$Run
+  samplesM$diet[samplesM$group=="10% fat diet (LF)"] <- "LF"
+  samplesM$diet[samplesM$group=="60% fat diet (HF)"] <- "HF"
+  samplesM$diet[samplesM$group=="HF diet then switched to LF diet"] <- "HF_LF"
+  samplesM$diet <- factor(samplesM$diet)
+  
+  ## get Annotation data
+  ensembl <- useDataset("mmusculus_gene_ensembl", useMart("ensembl"))
+  bm <- getBM(filters = "ensembl_gene_id",
+              attributes = c("ensembl_gene_id","entrezgene","external_gene_name","gene_biotype","description"),
+              values = rownames(cmat),
+              mart = ensembl)
+  
+  annot <- data.frame(id=rownames(cmat))
+  annot$symbol <- bm$external_gene_name[match(rownames(cmat), bm$ensembl_gene_id)]
+  annot$entrez <- bm$entrezgene[match(rownames(cmat), bm$ensembl_gene_id)]
+  annot$biotype <- bm$gene_biotype[match(rownames(cmat), bm$ensembl_gene_id)]
+  annot$description <- bm$description[match(rownames(cmat), bm$ensembl_gene_id)]
+  
+  se <- SummarizedExperiment(assays=list(counts=cmat, tpms=tmat), colData=samplesM, rowData=annot)
+  dim(se)
+  
+  saveRDS(se, file="se.rds")
+} else {
+  se <- readRDS("se.rds")
+}
+
+```
+
+## Read distribution
+
+```{r fig_counts, fig.width=5, fig.height=5}
+par(mar=c(6,4,2,2)+0.1)
+total.counts <- apply(assays(se)$counts,2,sum)
+o <- order(total.counts)
+total.counts <- total.counts[o]
+barplot(total.counts, las=2, col=se$group[o])
+```
+
+## Genes detected
+
+```{r fig_genes, fig.width=5, fig.height=5}
+par(mar=c(6,4,2,2)+0.1)
+total.genes <- apply(assays(se)$counts,2,function(x){sum(x>0)})
+o <- order(total.genes)
+total.counts <- total.genes[o]
+barplot(total.counts, las=2, col=se$group[o])
+
+```
+
+## PCA
+
+```{r pca, fig.width=6, fig.height=6}
+mat <- log2(assays(se)$tpms+0.01)
+mat <- mat[apply(mat,1,var)>0,]
+pca <- prcomp(t(mat))
+df <- data.frame(pca$x[,1:4])
+plot(df, col=se$group)
+```
+
+```{r}
+acan <- "ENSMUSG00000030607"
+assays(se)$tpms[acan,]
+assays(se)$tpms["ENSMUSG00000000001",]
+
+plot(log(assays(se)$tpms[,1]+0.01), log(assays(se)$counts[,1]+1))
+```
+
+```{r}
+sessionInfo()
+```
+

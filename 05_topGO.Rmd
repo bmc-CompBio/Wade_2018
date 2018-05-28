@@ -1,0 +1,90 @@
+---
+title: "topGO"
+author: "tobiasst"
+date: '`r format(Sys.time(), "%d %B, %Y")`'
+output:
+  html_document:
+    df_print: paged
+    toc: true 
+    toc_depth: 3
+    number_sections: true  ## if you want number sections at each table header
+    code_folding: hide
+    css: share/custom.css
+
+---
+
+```{r init, message=F, warning=F}
+library(DESeq2)
+library(org.Mm.eg.db)
+library(genefilter)
+library(geneplotter)
+library(topGO)
+
+
+res <- readRDS("res_HF_v_LF.rds")
+
+universe.ens <- rownames(res[!is.na(res$padj),])
+all.ens <- rownames(res[!is.na(res$padj) & res$padj<0.1,])
+up.ens <- rownames(res[!is.na(res$padj) & res$padj<0.1 & res$stat>0,])
+down.ens <- rownames(res[!is.na(res$padj) & res$padj<0.1 & res$stat<0,])
+```
+
+http://www-huber.embl.de/users/klaus/Teaching/DESeq2Predoc2014.html#gene-ontology-enrichment-analysis
+
+```{r functions}
+myTopGoBP <- function(foreG, res) {
+  overallBaseMean <- as.matrix(res[, "baseMean", drop = F])
+  sig_idx <- match(foreG, rownames(overallBaseMean))
+  backG <- c()
+  for(i in sig_idx){
+    ind <- genefinder(overallBaseMean, i, 10, method = "manhattan")[[1]]$indices
+    backG <- c(backG, ind)
+    
+  }
+  backG <- unique(backG)
+  backG <- rownames(overallBaseMean)[backG]
+  
+  backG <- setdiff(backG,  foreG)
+  
+  geneIDs = rownames(overallBaseMean)
+  inUniverse = geneIDs %in% c(foreground,  backG) 
+  inSelection =  geneIDs %in% foreground
+  alg <- factor( as.integer( inSelection[inUniverse] ) )
+  names(alg) <- geneIDs[inUniverse]
+  
+  tgd <- new( "topGOdata", ontology="BP", allGenes = alg, nodeSize=5,
+              annot=annFUN.org, mapping="org.Mm.eg.db", ID = "ensembl" )
+  
+  ## run tests
+  resultTopGO.elim <- runTest(tgd, algorithm = "elim", statistic = "Fisher" )
+  resultTopGO.classic <- runTest(tgd, algorithm = "classic", statistic = "Fisher" )
+  
+  ## look at results
+  bp <- GenTable( tgd, Fisher.elim = resultTopGO.elim, 
+                  Fisher.classic = resultTopGO.classic,
+                  orderBy = "Fisher.classic" , topNodes = 200)
+  bp
+}
+```
+
+# upregulated 
+
+```{r up_responders,  warning=F, message=F}
+foreground <- up.ens
+bptop <- myTopGoBP(foreground, res)
+bptop
+```
+
+# downregulated
+
+```{r dpwn_responders,  warning=F, message=F}
+foreground <- down.ens
+bptop <- myTopGoBP(foreground, res)
+bptop
+```
+
+
+```{r}
+sessionInfo()
+```
+

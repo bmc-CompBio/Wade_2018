@@ -1,0 +1,156 @@
+---
+title: "GO enrichment - general issues"
+author: "tobiasst"
+date: '`r format(Sys.time(), "%d %B, %Y")`'
+output:
+  html_document:
+    df_print: paged
+    toc: true 
+    toc_depth: 3
+    number_sections: true  ## if you want number sections at each table header
+    code_folding: hide
+    css: share/custom.css
+
+---
+
+```{r init, message=F, warning=F}
+library(DESeq2)
+library(org.Mm.eg.db)
+library(GOstats)
+library(GenomicFeatures)
+library(genefilter)
+library(Vennerable)
+library(UpSetR)
+
+
+
+res <- readRDS("res_HF_v_LF.rds")
+
+universe.ens <- rownames(res[!is.na(res$padj),])
+all.ens <- rownames(res[!is.na(res$padj) & res$padj<0.1,])
+up.ens <- rownames(res[!is.na(res$padj) & res$padj<0.1 & res$stat>0,])
+down.ens <- rownames(res[!is.na(res$padj) & res$padj<0.1 & res$stat<0,])
+```
+
+function requires Entrez IDs
+
+```{r functions}
+goStats <- function(foreground, background) {
+  hgCutoff <- 0.001 
+  entrezUniverse <- na.omit(background)
+  selectedEntrezIds <- na.omit(foreground)
+  params <- new("GOHyperGParams", geneIds = selectedEntrezIds, 
+                universeGeneIds = entrezUniverse,  annotation="org.Mm.eg.db",
+                ontology = "BP", pvalueCutoff = hgCutoff, conditional = FALSE, 
+                testDirection = "over") 
+  hyperGTest(params)
+}
+```
+
+## which background?
+
+### all mouse genes (as provided by GTF used for mapping)
+
+```{r all,  warning=F, message=F}
+txdb <- 
+  makeTxDbFromGFF("/Users/tobiasst/Desktop/mount/work/project/tobias/common/Mus_musculus.GRCm38.92.gtf")
+
+background <- 
+  mapIds(org.Mm.eg.db, names(genes(txdb)), keytype = "ENSEMBL", column = "ENTREZID", multiVals = "first")
+foreground <- 
+  mapIds(org.Mm.eg.db, all.ens, keytype = "ENSEMBL", column = "ENTREZID", multiVals = "first")
+
+bphyper.1 <- goStats(foreground, background)
+summary(bphyper.1)
+```
+
+### all genes assessed statistically, i.e. all genes with sufficient reads
+
+```{r active,  warning=F, message=F}
+background <- 
+  mapIds(org.Mm.eg.db, universe.ens, keytype = "ENSEMBL", column = "ENTREZID", multiVals = "first")
+foreground <-
+  mapIds(org.Mm.eg.db, all.ens, keytype = "ENSEMBL", column = "ENTREZID", multiVals = "first")
+
+bphyper.2 <- goStats(foreground, background)
+summary(bphyper.2)
+```
+
+### all expression-matched background group
+
+matching is based on http://www-huber.embl.de/users/klaus/Teaching/DESeq2Predoc2014.html#gene-ontology-enrichment-analysis
+
+```{r matched}
+foreG <- all.ens
+
+overallBaseMean <- as.matrix(res[, "baseMean", drop = F])
+sig_idx <- match(foreG, rownames(overallBaseMean))
+backG <- c()
+for(i in sig_idx){
+  ind <- genefinder(overallBaseMean, i, 10, method = "manhattan")[[1]]$indices
+  backG <- c(backG, ind)
+  
+}
+backG <- unique(backG)
+backG <- rownames(overallBaseMean)[backG]
+
+backG <- setdiff(backG,  foreG)
+
+
+background <- 
+  na.omit(mapIds(org.Mm.eg.db, backG, keytype = "ENSEMBL", column = "ENTREZID", multiVals = "first"))
+foreground <- 
+  mapIds(org.Mm.eg.db, foreG, keytype = "ENSEMBL", column = "ENTREZID", multiVals = "first")
+
+bphyper.3 <- goStats(foreground, c(background,foreground))
+summary(bphyper.3)
+```
+
+
+### results similarity
+
+```{r,fig.width=6, fig.height=6}
+goSets <- list(all=data.frame(summary(bphyper.1))$GOBPID, 
+     active=data.frame(summary(bphyper.2))$GOBPID,
+     matching=data.frame(summary(bphyper.3))$GOBPID)
+plot(Venn(goSets))
+
+u <-upset(fromList(goSets), order.by = "freq")
+```
+
+## up and down separate?
+
+https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3899863/
+
+```{r}
+
+bphyper.all <- bphyper.3
+
+background <- 
+  na.omit(mapIds(org.Mm.eg.db, backG, keytype = "ENSEMBL", column = "ENTREZID", multiVals = "first"))
+foreground <- 
+  mapIds(org.Mm.eg.db, up.ens, keytype = "ENSEMBL", column = "ENTREZID", multiVals = "first")
+
+bphyper.up <- goStats(foreground, c(background,foreground))
+summary(bphyper.up)
+
+foreground <- 
+  mapIds(org.Mm.eg.db, down.ens, keytype = "ENSEMBL", column = "ENTREZID", multiVals = "first")
+
+bphyper.down <- goStats(foreground, c(background,foreground))
+summary(bphyper.down)
+
+goSets <- list(all=data.frame(summary(bphyper.all))$GOBPID, 
+     up=data.frame(summary(bphyper.up))$GOBPID,
+     down=data.frame(summary(bphyper.down))$GOBPID)
+plot(Venn(goSets))
+
+u <-upset(fromList(goSets), order.by = "freq")
+```
+
+```
+
+```{r}
+sessionInfo()
+```
+

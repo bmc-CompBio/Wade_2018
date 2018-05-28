@@ -1,0 +1,71 @@
+---
+title: "GOstats"
+author: "tobiasst"
+date: '`r format(Sys.time(), "%d %B, %Y")`'
+output:
+  html_document:
+    df_print: paged
+    code_folding: hide
+---
+
+```{r init, message=F, warning=F}
+library(DESeq2)
+library(org.Mm.eg.db)
+library(topGO)
+
+res <- readRDS("res_HF_v_LF.rds")
+
+universe.ens <- rownames(res[!is.na(res$padj),])
+all.ens <- rownames(res[!is.na(res$padj) & res$padj<0.1,])
+up.ens <- rownames(res[!is.na(res$padj) & res$padj<0.1 & res$stat>0,])
+down.ens <- rownames(res[!is.na(res$padj) & res$padj<0.1 & res$stat<0,])
+```
+
+```{r functions}
+goStats <- function(forground, background) {
+  hgCutoff <- 0.001 
+  entrezUniverse <- na.omit(background)
+  selectedEntrezIds <- na.omit(foreground)
+  params <- new("GOHyperGParams", geneIds = selectedEntrezIds, 
+                universeGeneIds = entrezUniverse,  annotation="org.Mm.eg.db",
+                ontology = "BP", pvalueCutoff = hgCutoff, conditional = FALSE, 
+                testDirection = "over") 
+  hyperGTest(params)
+}
+```
+
+# all responders 
+
+```{r all_responders,  warning=F, message=F}
+background <- mapIds(org.Mm.eg.db, universe.ens, keytype = "ENSEMBL", column = "ENTREZID", multiVals = "first")
+foreground <- mapIds(org.Mm.eg.db, all.ens, keytype = "ENSEMBL", column = "ENTREZID", multiVals = "first")
+
+bphyper <- goStats(forground, background)
+summary(bphyper)
+```
+
+# upregulated 
+
+```{r up_responders,  warning=F, message=F}
+background <- mapIds(org.Mm.eg.db, universe.ens, keytype = "ENSEMBL", column = "ENTREZID", multiVals = "first")
+foreground <- mapIds(org.Mm.eg.db, up.ens, keytype = "ENSEMBL", column = "ENTREZID", multiVals = "first")
+
+bphyper <- goStats(forground, background)
+summary(bphyper)
+```
+
+# downregulated
+
+```{r dpwn_responders,  warning=F, message=F}
+background <- mapIds(org.Mm.eg.db, universe.ens, keytype = "ENSEMBL", column = "ENTREZID", multiVals = "first")
+foreground <- mapIds(org.Mm.eg.db, down.ens, keytype = "ENSEMBL", column = "ENTREZID", multiVals = "first")
+
+bphyper <- goStats(forground, background)
+summary(bphyper)
+```
+
+
+```{r}
+sessionInfo()
+```
+

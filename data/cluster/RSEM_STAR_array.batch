@@ -1,0 +1,52 @@
+#! /usr/bin/bash
+#
+# RSEM_STAR_array.batch
+#
+#SBATCH -J RSEM_STAR_array.batch     # job_name
+#SBATCH -p slim18                    # Partition
+#SBATCH -n 36                        # cores
+#SBATCH -N 1                         # node required
+#SBATCH -t 0-2:00                    # Running time
+#SBATCH --mem 40000                  # Memory request
+#SBATCH -o rsem_%A_%a.out            # Standard output
+#SBATCH -e rsem_%A_%a.err            # Standard error
+
+module load ngs/STAR
+module load ngs/RSEM
+module load ngs/sratoolkit/2.8.0
+
+LINE_NO=$(echo ${SLURM_ARRAY_TASK_ID}+1 | bc)
+## get parameters from table
+SRUN=$(awk -F '\t' -v line=${LINE_NO} -v field=11 'NR==line{print $field}' SraRunTable.txt)
+
+
+# make run directory
+mkdir ${SRUN}_out
+cd ${SRUN}_out
+
+
+# get data from cache
+fastq-dump --split-3 ${SRUN}
+
+
+## PAIRED END READS STRANDED
+
+# align and quantitate expression
+STAR_genome="/work/data/genomes/mouse/Mus_musculus/Ensembl/GRCm38/Sequence/RSEM_STAR_txn_50"
+STAR_opts="--runThreadN 34 --quantMode TranscriptomeSAM GeneCounts --outSAMtype BAM SortedByCoordinate --limitBAMsortRAM 40000000000"
+## --twopassMode Basic --outFilterMultimapNmax 1 ## arguments to be checked
+
+STAR $STAR_opts --genomeDir $STAR_genome --readFilesIn ${SRUN}_1.fastq ${SRUN}_2.fastq --outFileNamePrefix ${SRUN}.
+
+rsem-calculate-expression --bam --paired-end --forward-prob 0 -p 34 \
+                         ${SRUN}.Aligned.toTranscriptome.out.bam \
+                         $STAR_genome/genome \
+                         ${SRUN}_rsem
+
+# cleanup
+rm *.bam
+rm *.fastq
+
+cp ../rsem_${SLURM_ARRAY_JOB_ID}_${SLURM_ARRAY_TASK_ID}.out .
+cp ../rsem_${SLURM_ARRAY_JOB_ID}_${SLURM_ARRAY_TASK_ID}.err .
+

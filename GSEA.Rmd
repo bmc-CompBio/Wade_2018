@@ -1,0 +1,148 @@
+---
+title: "GSEA"
+author: "tobiasst"
+date: '`r format(Sys.time(), "%d %B, %Y")`'
+output:
+  html_document:
+    df_print: paged
+    toc: true 
+    toc_depth: 3
+    number_sections: true  ## if you want number sections at each table header
+    code_folding: hide
+    css: share/custom.css
+
+---
+
+http://bioinf.wehi.edu.au/software/MSigDB/index.html
+
+
+```{r init, message=F, warning=F}
+library(DESeq2)
+library(org.Mm.eg.db)
+library(limma)
+library(gskb)
+
+
+no.rotations <- 9999
+
+se <- readRDS("se.rds")
+se <- se[, se$diet %in% c("LF","HF")]
+se$diet <- droplevels(se$diet)
+se <- se[,order(se$diet)]
+
+## remove non-expressing rows
+se <- se[rowSums(assays(se)$counts)> 0,]
+
+## get TPMs and log transform them
+mat <- log2(assays(se)$tpms+0.01)
+
+## get the global logFC per gene based on paired within-batch comparison 
+logFC <- apply(mat[,c(1:5)] - mat[,c(6:10)],1,mean)
+
+design <- model.matrix(~se$diet)
+
+## for the gskb sets we need symbols
+symbol <- mapIds(org.Mm.eg.db, keys = rownames(mat), keytype = "ENSEMBL",
+       column = "SYMBOL", multiVals = "first")
+
+data(mm_GO)
+data(mm_pathway)
+data(mm_TF)
+
+
+## make a gene list with just GO BP
+mm_GO_BP <- list()
+for (name in names(mm_GO)) {
+  if (grepl("biological_process", mm_GO[[name]][2])) {
+    mm_GO_BP[[name]] <- mm_GO[[name]]
+  }
+}
+
+clean.index <- function(index, min.n = 5) {
+  clean.index <- list()
+  for (n in names(index)) {
+    if (length(index[[n]]) >= min.n) {
+      clean.index[[n]] <- index[[n]]
+    }
+  }
+  clean.index
+}
+
+index <- clean.index(ids2indices(mm_GO_BP, symbol))
+r.bp <- romer(mat, index, design=design, contrast=2,nrot=no.rotations)
+
+index <- clean.index(ids2indices(mm_pathway, symbol))
+r.pw <- romer(mat, index, design=design, contrast=2,nrot=no.rotations)
+
+index <- clean.index(ids2indices(mm_TF, symbol))
+r.tf <- romer(mat, index, design=design, contrast=2,nrot=no.rotations)
+
+########################################################################################################################################
+
+
+topRomer(r.bp, alt="up", n=30)
+topRomer(r.bp, alt="down", n=30)
+
+
+
+topRomer(r.pw, alt="up", n=30)
+
+topRomer(r.tf, alt="up", n=30)
+
+
+```
+
+
+http://bioinf.wehi.edu.au/software/MSigDB/index.html
+
+```{r}
+library(fgsea)
+results <- readRDS("res_HF_v_LF.rds")
+results.ord <- results[ order(-results[,"log2FoldChange"]), ]
+ranks <- results.ord$log2FoldChange
+names(ranks) <- mapIds(org.Mm.eg.db, keys = rownames(results.ord), keytype = "ENSEMBL",
+       column = "ENTREZID", multiVals = "first")
+head(ranks)
+barplot(ranks)
+load("share/mouse_H_v5.rdata")
+pathways <- Mm.H
+
+fgseaRes <- fgsea(pathways, ranks, minSize=15, maxSize = 500, nperm=1000)
+class(fgseaRes)
+dim(fgseaRes)
+head(fgseaRes[order(padj), ])
+
+
+plotEnrichment(pathways[["HALLMARK_IL6_JAK_STAT3_SIGNALING"]], ranks)
+
+
+topPathwaysUp <- fgseaRes[ES > 0][head(order(pval), n=10), pathway]
+topPathwaysDown <- fgseaRes[ES < 0][head(order(pval), n=10), pathway]
+topPathways <- c(topPathwaysUp, rev(topPathwaysDown))
+plotGseaTable(pathways[topPathways], ranks, fgseaRes, 
+              gseaParam = 0.5)
+
+```
+
+```{r}
+load("share/mouse_c2_v5.rdata")
+pathways <- Mm.c2
+
+fgseaRes <- fgsea(pathways, ranks, minSize=15, maxSize = 500, nperm=1000)
+head(fgseaRes[order(padj), ])
+
+plotEnrichment(pathways[["KEGG_NATURAL_KILLER_CELL_MEDIATED_CYTOTOXICITY"]], ranks)
+
+topPathwaysUp <- fgseaRes[ES > 0][head(order(pval), n=10), pathway]
+topPathwaysDown <- fgseaRes[ES < 0][head(order(pval), n=10), pathway]
+topPathways <- c(topPathwaysUp, rev(topPathwaysDown))
+plotGseaTable(pathways[topPathways], ranks, fgseaRes, 
+              gseaParam = 0.5)
+
+```
+
+
+```{r}
+sessionInfo()
+```
+
