@@ -1,0 +1,74 @@
+---
+title: "GSEA"
+author: "tobiasst"
+date: '`r format(Sys.time(), "%d %B, %Y")`'
+output:
+  html_document:
+    df_print: paged
+    toc: true 
+    toc_depth: 3
+    number_sections: true  ## if you want number sections at each table header
+    code_folding: hide
+    css: share/custom.css
+
+---
+
+gene sets downloaded from 
+http://bioinf.wehi.edu.au/software/MSigDB/index.html
+
+
+```{r init, message=F, warning=F}
+library(SummarizedExperiment)
+library(fgsea)
+library(org.Mm.eg.db)
+library(pheatmap)
+```
+
+ranking on the statistic (alternative log2FC)
+
+http://bioinf.wehi.edu.au/software/MSigDB/index.html
+
+```{r}
+results <- readRDS("res_HF_v_LF.rds")
+results.ord <- na.omit(results[ order(-results[,"stat"]), ])
+ranks <- results.ord$log2FoldChange
+names(ranks) <- mapIds(org.Mm.eg.db, keys = rownames(results.ord), keytype = "ENSEMBL",
+       column = "ENTREZID", multiVals = "first")
+```
+
+## Hallmark gene sets
+
+```{r, message=F, fig.width=10, fig.height=10}
+load("share/mouse_H_v5.rdata")
+pathways <- Mm.H
+fgseaRes <- fgsea(pathways, ranks, minSize=15, maxSize = 500, nperm=1000)
+topPathwaysUp <- fgseaRes[ES > 0][head(order(pval), n=10), pathway]
+topPathwaysDown <- fgseaRes[ES < 0][head(order(pval), n=10), pathway]
+topPathways <- c(topPathwaysUp, rev(topPathwaysDown))
+plotGseaTable(pathways[topPathways], ranks, fgseaRes, 
+              gseaParam = 0.5)
+
+```
+
+
+## curated gene sets
+
+```{r, message=F, fig.width=10, fig.height=10}
+
+load("share/mouse_c2_v5.rdata")
+pathways <- Mm.c2
+fgseaRes <- fgsea(pathways, ranks, minSize=15, maxSize = 500, nperm=1000)
+topPathwaysUp <- fgseaRes[ES > 0][head(order(pval), n=10), pathway]
+topPathwaysDown <- fgseaRes[ES < 0][head(order(pval), n=10), pathway]
+topPathways <- c(topPathwaysUp, rev(topPathwaysDown))
+plotGseaTable(pathways[topPathways], ranks, fgseaRes, 
+              gseaParam = 0.5)
+
+```
+
+
+
+```{r}
+sessionInfo()
+```
+

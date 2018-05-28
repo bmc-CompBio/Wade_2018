@@ -12,6 +12,7 @@ output:
 library(DESeq2)
 library(org.Mm.eg.db)
 library(topGO)
+library(GOstats)
 
 res <- readRDS("res_HF_v_LF.rds")
 

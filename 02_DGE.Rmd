@@ -10,10 +10,8 @@ output:
 
 ```{r init, message=F, warning=F}
 library(DESeq2)
-library(org.Mm.eg.db)
+library(parallel)
 library(pheatmap)
-library(genefilter)
-library(geneplotter)
 ```
 
 ```{r stats,  warning=F}
@@ -26,13 +24,12 @@ summary(res)
 saveRDS(res, "res_HF_v_LF.rds")
 
 ## fits suppl. table 
-rf <- data.frame(res)
-rf$symbol <- rowData(se)$symbol
-rf$descr <- rowData(se)$description
-rf <- rf[order(rf$padj),]
+rf <- data.frame(res[order(res$padj),])
+rf$symbol <- rowData(dds)$symbol
 
 ## differentially expressed genes
 degf <- rf[!is.na(rf$padj) & rf$padj<0.1,]
+res <- res[order(res$stat, decreasing = T),]
 ```
 
 ## upregulated genes HF versus LF
@@ -42,9 +39,9 @@ degf <- rf[!is.na(rf$padj) & rf$padj<0.1,]
 upregulated <- rownames(res)[!is.na(res$padj) & res$padj < 0.1 & res$stat > 0]
 
 mat <- t(scale(t(log2(assays(se)$tpms[upregulated,]+0.01))))
-rownames(mat) <- rowData(se)$symbol[match(rownames(mat), rownames(se))]
+rownames(mat) <- rowData(se[upregulated,])$symbol
 
-ann <- data.frame(diet=samplesM$diet,row.names = colnames(mat))
+ann <- data.frame(diet=se$diet,row.names = colnames(mat))
 p <- pheatmap(mat, annotation_col = ann, scale = "row", cluster_rows=F)
 ```
 
