@@ -25,15 +25,18 @@ library(pheatmap)
 ```
 
 ranking on the statistic (alternative log2FC)
-
 http://bioinf.wehi.edu.au/software/MSigDB/index.html
 
+rank vector does not have to be ordered, watch out multiple genes with same entrez id.
+
 ```{r}
+se <- readRDS("se.rds")
 results <- readRDS("res_HF_v_LF.rds")
-results.ord <- na.omit(results[ order(-results[,"stat"]), ])
-ranks <- results.ord$log2FoldChange
-names(ranks) <- mapIds(org.Mm.eg.db, keys = rownames(results.ord), keytype = "ENSEMBL",
-       column = "ENTREZID", multiVals = "first")
+
+ranks <- results$stat
+names(ranks) <- rowData(se)$entrez
+ranks <- na.omit(ranks)
+ranks <- ranks[!duplicated(names(ranks))]
 ```
 
 ## Hallmark gene sets
@@ -50,6 +53,21 @@ plotGseaTable(pathways[topPathways], ranks, fgseaRes,
 
 ```
 
+
+## GO gene sets
+
+```{r, message=F, fig.width=10, fig.height=10}
+
+load("share/mouse_c5_v5p2.rdata")
+pathways <- Mm.c5
+fgseaRes <- fgsea(pathways, ranks, minSize=15, maxSize = 500, nperm=1000)
+topPathwaysUp <- fgseaRes[ES > 0][head(order(pval), n=10), pathway]
+topPathwaysDown <- fgseaRes[ES < 0][head(order(pval), n=10), pathway]
+topPathways <- c(topPathwaysUp, rev(topPathwaysDown))
+plotGseaTable(pathways[topPathways], ranks, fgseaRes, 
+              gseaParam = 0.5)
+
+```
 
 ## curated gene sets
 
