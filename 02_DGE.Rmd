@@ -9,6 +9,7 @@ output:
 ---
 
 ```{r init, message=F, warning=F}
+library(SummarizedExperiment)
 library(DESeq2)
 library(parallel)
 library(pheatmap)

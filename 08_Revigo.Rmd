@@ -23,3 +23,7 @@ df <- data.frame(summary(go.all)$GOBPID, summary(go.all)$Pvalue)
 clipr::write_clip(df, col.names=F)
 ```
 
+```{r}
+sessionInfo()
+```
+
