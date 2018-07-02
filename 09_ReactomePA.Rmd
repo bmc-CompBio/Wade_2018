@@ -1,0 +1,61 @@
+---
+title: "ReactomePA"
+author: "tobiasst"
+date: '`r format(Sys.time(), "%d %B, %Y")`'
+output:
+  html_document:
+    df_print: paged
+    code_folding: hide
+---
+
+
+```{r init, message=F, warning=F}
+library(ReactomePA)
+library(org.Mm.eg.db)
+```
+
+```{r}
+res <- readRDS("res_HF_v_LF.rds")
+
+universe.ens <- rownames(res[!is.na(res$padj),])
+all.ens <- rownames(res[!is.na(res$padj) & res$padj<0.1,])
+background <- mapIds(org.Mm.eg.db, universe.ens, keytype = "ENSEMBL", column = "ENTREZID", multiVals = "first")
+foreground <- mapIds(org.Mm.eg.db, all.ens, keytype = "ENSEMBL", column = "ENTREZID", multiVals = "first")
+
+res <- res[order(res$stat),]
+# rank ordered gene list for GSEA
+geneList <- na.omit(mapIds(org.Mm.eg.db, rownames(res[!is.na(res$padj),]), keytype = "ENSEMBL", column = "ENTREZID", multiVals = "first"))
+```
+
+```{r}
+x <- enrichPathway(gene=foreground,pvalueCutoff=0.05, readable=T,organism = "mouse",universe=background)
+head(as.data.frame(x))
+```
+```{r, fig.width=12, fig.height=6}
+barplot(x, showCategory=6)
+```
+
+```{r, fig.width=12, fig.height=6}
+dotplot(x, showCategory=15)
+```
+```{r, fig.width=9, fig.height=9}
+emapplot(x)
+```
+
+GSEA
+
+* does not work, structre of geneList unkown * 
+
+```{r}
+y <- gsePathway(rev(geneList), nPerm=10000,
+                pvalueCutoff=0.2,
+                pAdjustMethod="BH", verbose=FALSE, organism="mouse")
+res <- as.data.frame(y)
+head(res)
+```
+
+
+```{r}
+sessionInfo()
+```
+
