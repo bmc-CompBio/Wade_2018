@@ -1,0 +1,25 @@
+---
+title: "REVIGO"
+author: "tobiasst"
+date: '`r format(Sys.time(), "%d %B, %Y")`'
+output:
+  html_document:
+    df_print: paged
+    code_folding: hide
+---
+
+http://revigo.irb.hr
+requires FLASH
+
+```{r init, message=F, warning=F}
+library(GOstats)
+library(clipr)
+```
+
+create data structure to be pasted into Revigo online form
+```{r}
+go.all <- readRDS("gstats_all.rds")
+df <- data.frame(summary(go.all)$GOBPID, summary(go.all)$Pvalue)
+clipr::write_clip(df, col.names=F)
+```
+

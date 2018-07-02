@@ -42,6 +42,7 @@ background <- mapIds(org.Mm.eg.db, universe.ens, keytype = "ENSEMBL", column = "
 foreground <- mapIds(org.Mm.eg.db, all.ens, keytype = "ENSEMBL", column = "ENTREZID", multiVals = "first")
 
 bphyper <- goStats(forground, background)
+saveRDS(bphyper, "gstats_all.rds")
 summary(bphyper)
 ```
 
@@ -52,6 +53,7 @@ background <- mapIds(org.Mm.eg.db, universe.ens, keytype = "ENSEMBL", column = "
 foreground <- mapIds(org.Mm.eg.db, up.ens, keytype = "ENSEMBL", column = "ENTREZID", multiVals = "first")
 
 bphyper <- goStats(forground, background)
+saveRDS(bphyper, "gstats_up.rds")
 summary(bphyper)
 ```
 
@@ -62,6 +64,7 @@ background <- mapIds(org.Mm.eg.db, universe.ens, keytype = "ENSEMBL", column = "
 foreground <- mapIds(org.Mm.eg.db, down.ens, keytype = "ENSEMBL", column = "ENTREZID", multiVals = "first")
 
 bphyper <- goStats(forground, background)
+saveRDS(bphyper, "gstats_down.rds")
 summary(bphyper)
 ```
 

@@ -1,0 +1,80 @@
+---
+title: "GOplot"
+author: "tobiasst"
+date: '`r format(Sys.time(), "%d %B, %Y")`'
+output:
+  html_document:
+    df_print: paged
+    code_folding: hide
+---
+
+
+http://wencke.github.io
+
+```{r init, message=F, warning=F}
+library(SummarizedExperiment)
+library(GOplot)
+library(GOstats)
+library(org.Mm.eg.db)
+```
+
+## GO enrichment calculation and data preparation
+
+Plotting shown for the combined (up and down-regulated genes) enrichments calculated using GOstats.
+Package examples are using DAVID output in a specific format that I reconstructed from GOstats output
+
+```{r}
+go.all <- readRDS("gstats_all.rds")
+res <- readRDS("res_HF_v_LF.rds")
+se <- readRDS("se.rds")
+res$entrez <- rowData(se)$entrez
+res$symbol <- rowData(se)$symbol
+
+flt <- !is.na(res$padj) & res$padj<0.1
+
+adjp <- p.adjust(summary(go.all)$Pvalue)
+## reconstruct a "david" structure
+david <- c()
+for (i in 1:nrow(summary(go.all))) {
+  go <-  summary(go.all)$GOBPID[i]
+  ids <- unlist(mget(go,org.Mm.egGO2ALLEGS))
+  genes <- res$symbol[res$entrez %in% ids & flt ]
+	david <- rbind(david, 
+	            data.frame(Category="BP", 
+	                       ID=go,Term=summary(go.all)$Term[i],
+	                       Genes=paste(genes, collapse=", "), 
+	                       adj_pval=adjp[i]))
+}
+
+genelist <- data.frame(ID=res$symbol, logFC=res$log2FoldChange, AveExpr=log2(res$baseMean), t=res$stat, P.Value=res$pvalue, adj.P.Value=res$padj)[flt,]
+circ <- circle_dat(david, genelist )
+```
+
+## The modified barplot (GOBar)
+
+```{r, fig.width=8, fig.height=6}
+
+# Generate a simple barplot
+GOBar(subset(circ, category='BP'))
+```
+
+## The bubble plot (GOBubble)
+
+```{r, fig.width=10, fig.height=8}
+# Generate the bubble plot with a label threshold of 3
+GOBubble(circ, labels = 3)
+```
+
+## Circular visualization of the results of gene- annotation enrichment analysis (GOCircle)
+
+```{r, fig.width=10, fig.height=8}
+GOCircle(circ)
+```
+
+
+
+
+```{r}
+sessionInfo()
+```
+
