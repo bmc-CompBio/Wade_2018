@@ -1,0 +1,60 @@
+---
+title: "Pathview"
+author: "tobiasst"
+date: '`r format(Sys.time(), "%d %B, %Y")`'
+output:
+  html_document:
+    df_print: paged
+    code_folding: hide
+---
+
+
+```{r init, message=F, warning=F}
+library(SummarizedExperiment)
+library(GOplot)
+library(GOstats)
+library(org.Mm.eg.db)
+library(GOstats)
+library(KEGG.db)
+library(pathview)
+```
+
+## 
+
+```{r}
+keggStats <- function(foreground, background) {
+  hgCutoff <- 0.001 
+  entrezUniverse <- na.omit(background)
+  selectedEntrezIds <- na.omit(foreground)
+  params <- new("KEGGHyperGParams", geneIds = selectedEntrezIds, 
+                universeGeneIds = entrezUniverse,  annotation="org.Mm.eg.db",
+                pvalueCutoff = hgCutoff, 
+                testDirection = "over") 
+  hyperGTest(params)
+}
+
+```
+
+
+```{r}
+res <- readRDS("res_HF_v_LF.rds")
+se <- readRDS("se.rds")
+
+bg <- rowData(se)$entrez
+fc <- res$log2FoldChange
+
+names(fc) <- rowData(se)$entrez
+fg <- bg[res$padj<0.1]
+
+kegg <- keggStats(fg, bg)
+pathview(fc, pathway.id = summary(kegg)$KEGGID[1], species = "mmu")
+```
+
+
+
+
+
+```{r}
+sessionInfo()
+```
+
