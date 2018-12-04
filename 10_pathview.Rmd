@@ -36,7 +36,7 @@ keggStats <- function(foreground, background) {
 ```
 
 
-```{r}
+```{r, warning=F, message=F}
 res <- readRDS("res_HF_v_LF.rds")
 se <- readRDS("se.rds")
 
@@ -49,10 +49,7 @@ fg <- bg[res$padj<0.1]
 kegg <- keggStats(fg, bg)
 pathview(fc, pathway.id = summary(kegg)$KEGGID[1], species = "mmu")
 ```
-
-
-
-
+![fold changes mapped on 03010.](mmu03010.pathview.png)
 
 ```{r}
 sessionInfo()
